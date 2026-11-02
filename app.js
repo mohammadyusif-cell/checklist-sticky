@@ -10,9 +10,9 @@
     { key: 'companyTaxes', title: 'Company Taxes', col2: 0, col4: 3, amount: false, hint: 'Add a company return...', due: true },
     { key: 'clientsToCharge', title: 'Clients to Charge', col2: 0, col4: 2, amount: true, hint: 'Add a client to charge...', due: true },
     { key: 'needFeedbackToCharge', title: 'Need Customer Feedback to Charge', col2: 0, col4: 2, amount: true, hint: 'Add a client waiting on feedback...', due: true },
-    { key: 'payroll', title: 'Payroll', col2: 1, col4: 1, amount: false, hint: 'Add a client payroll...', due: false, byDay: true },
+    { key: 'payroll', title: 'Payroll', col2: 1, col4: 1, amount: false, hint: 'Add a client payroll...', due: false, byDay: true, sortByDay: false },
     { key: 'immigration', title: 'Immigration', col2: 1, col4: 3, amount: false, hint: 'Add an immigration case...', due: true },
-    { key: 'bills', title: 'Bills Due', col2: 1, col4: 2, amount: true, hint: 'Add a bill...', due: false, byDay: true },
+    { key: 'bills', title: 'Bills Due', col2: 1, col4: 2, amount: true, hint: 'Add a bill...', due: false, byDay: true, sortByDay: true },
     { key: 'personalTasks', title: 'Personal Tasks', col2: 1, col4: 0, amount: false, hint: 'Add a personal task...', due: true }
   ];
   // default top-to-bottom list order. It also gives the right order inside each column of the 2- and 4-column layouts.
@@ -93,10 +93,11 @@
   function defOf(key) { for (var i = 0; i < DEFS.length; i++) if (DEFS[i].key === key) return DEFS[i]; }
   function setStatus(msg, cls) { $('status').textContent = msg || ''; var s = $('sync'); s.className = 'sync ' + (cls || ''); }
 
-  // display order: not-done first (manual order), done last; payroll / bills by date, manual order within a date
+  // display order: not-done first (manual order), done last; bills by date (manual order within a date).
+  // Payroll keeps a free manual order (its date pill still shows on the right).
   function displayOrder(key) {
     var def = defOf(key);
-    return list(key).map(function (it, idx) { return { it: it, idx: idx, done: it.done ? 1 : 0, day: def.byDay ? (it.day || '') : '' }; })
+    return list(key).map(function (it, idx) { return { it: it, idx: idx, done: it.done ? 1 : 0, day: def.sortByDay ? (it.day || '') : '' }; })
       .sort(function (a, b) { return a.done - b.done || (a.day < b.day ? -1 : a.day > b.day ? 1 : 0) || a.idx - b.idx; });
   }
 
@@ -125,7 +126,9 @@
     }
     function meta(t) {
       return fetch(base + '?select=id,eTag,lastModifiedDateTime,@microsoft.graph.downloadUrl', { headers: { Authorization: 'Bearer ' + t }, cache: 'no-store' })
-        .then(function (r) { if (!r.ok) throw new Error('OneDrive: ' + r.status + ' reading the file'); return r.json(); });
+        .then(function (r) {
+          if (r.status === 404) throw { notFound: true };
+          if (!r.ok) throw new Error('OneDrive: ' + r.status + ' reading the file'); return r.json(); });
     }
     return {
       name: 'OneDrive',
@@ -141,6 +144,8 @@
         });
       },
       save: function (data, etag) {
+        // only ever overwrite the existing file (If-Match); never create a new / empty one
+        if (!etag) return Promise.reject(new Error('no loaded OneDrive file to save to'));
         return token().then(function (t) {
           return fetch(base + ':/content', { method: 'PUT', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json', 'If-Match': etag },
             body: JSON.stringify(data, null, 2) });
@@ -236,12 +241,31 @@
     if (def.byDay && date) it.day = date;
     if (!def.byDay && date) it.due = date;
     if (def.amount) { var a = parseFloat(String(amount || '').replace(/[$,\s]/g, '')); it.amount = isNaN(a) ? '' : a; }
-    list(key).push(it); changed();
+    if (key === 'payroll') insertByDay(list(key), it); else list(key).push(it);
+    changed();
+  }
+  // new payroll item: right after the last undone item dated the same day or earlier (manual moves are respected);
+  // if there is none, above the first undone item
+  function insertByDay(l, it) {
+    var after = -1, first = -1, d = it.day || '';
+    l.forEach(function (o, i) { if (o.done) return; if (first < 0) first = i; if ((o.day || '') <= d) after = i; });
+    if (after >= 0) l.splice(after + 1, 0, it); else if (first >= 0) l.splice(first, 0, it); else l.push(it);
+  }
+  // one time: payroll used to be shown sorted by date; sort the saved list by date once (stable) so it looks
+  // the same, then mark it ("payrollManualOrder": true in the file, plus this device) and never auto-sort again
+  function payrollToManual(d) {
+    if (!d || d.payrollManualOrder === true || localStorage.getItem('cs.payrollManual') === '1') return false;
+    var l = Array.isArray(d.payroll) ? d.payroll : [];
+    d.payroll = l.map(function (it, idx) { return { it: it, idx: idx }; })
+      .sort(function (a, b) { var x = a.it.day || '', y = b.it.day || ''; return x < y ? -1 : x > y ? 1 : a.idx - b.idx; })
+      .map(function (p) { return p.it; });
+    d.payrollManualOrder = true;
+    return true;
   }
   function moveItem(key, id, dir) {
     var def = defOf(key), ord = displayOrder(key).filter(function (p) { return !p.done; });
     var me = ord.filter(function (p) { return String(p.it.id) === String(id); })[0]; if (!me) return;
-    if (def.byDay) ord = ord.filter(function (p) { return p.day === me.day; });
+    if (def.sortByDay) ord = ord.filter(function (p) { return p.day === me.day; });
     var pos = ord.indexOf(me), target = null;
     if (dir === 'up' && pos > 0) target = ord[pos - 1]; if (dir === 'top' && pos > 0) target = ord[0];
     if (dir === 'down' && pos < ord.length - 1) target = ord[pos + 1];
@@ -371,17 +395,24 @@
     $('btnRefresh').onclick = function () { flush().then(function () { return poll(true); }); };
     $('btnAccount').onclick = function () { var a = state.store.account && state.store.account(); if (state.store.signOut && confirm('Signed in as ' + a + '. Sign out?')) state.store.signOut(); else if (!state.store.signOut) alert(a); };
     $('btnSignIn').onclick = function () { state.store.signIn(); };
+    $('btnRetry').onclick = function () { location.reload(); };
     state.store.signedIn().then(function (ok) {
       if (!ok) { $('signin').classList.remove('hidden'); setStatus(''); return; }
       setStatus('Loading...', 'busy');
       return state.store.load().then(function (r) {
         state.data = r.data; state.base = clone(r.data); state.etag = r.etag; render();
         setStatus('Loaded from ' + state.store.name, 'ok');
+        if (payrollToManual(state.data)) changed();
+        localStorage.setItem('cs.payrollManual', '1');
         setInterval(function () { if (!document.hidden) poll(); }, (CFG.pollSeconds || 15) * 1000);
         document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); else flush(); });
         window.addEventListener('resize', function () { if (colCount() !== state.cols) render(); });
       });
-    }).catch(function (e) { if (!(e && e.redirecting)) setStatus('Could not load: ' + (e && e.message || JSON.stringify(e)), 'err'); });
+    }).catch(function (e) {
+      if (e && e.redirecting) return;
+      if (e && e.notFound) { $('missing').classList.remove('hidden'); setStatus(''); return; }
+      setStatus('Could not load: ' + (e && e.message || JSON.stringify(e)), 'err');
+    });
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
   }
   start();

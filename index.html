@@ -33,6 +33,12 @@
     <p>Sign in with your Microsoft account to open your checklist from OneDrive.</p>
     <button id="btnSignIn" class="primary">Sign in</button>
   </div>
+  <div id="missing" class="signin hidden">
+    <img src="icons/icon-512-transparent.png" alt="" width="120" height="120">
+    <p><b>Your checklist hasn't been moved to OneDrive yet.</b></p>
+    <p>You're signed in, but there's no "Checklist Sticky/checklist.json" in your OneDrive yet. Once it's moved there from your PC, your lists will show up here. Nothing was created or changed.</p>
+    <button id="btnRetry" class="primary">Try again</button>
+  </div>
   <div id="listbar" class="listbar hidden">
     <span>Reorder: use the arrows on a list's header to move the whole list, or on an item to move it.</span>
     <span class="lbtns"><button id="btnCollapseAll">Collapse all</button><button id="btnExpandAll">Expand all</button><button id="btnResetOrder">Reset order</button></span>
