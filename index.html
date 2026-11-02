@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Checklist">
+<meta name="theme-color" content="#16181e">
+<title>Checklist Sticky</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/favicon-64.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div class="titles">
+      <div class="title">Checklist Sticky</div>
+      <div id="week" class="week"></div>
+    </div>
+    <div class="hbtns">
+      <span id="sync" class="sync" title="Sync status"></span>
+      <button id="btnReorder" class="hbtn" title="Reorder">&#x21C5;</button>
+      <button id="btnRefresh" class="hbtn" title="Refresh">&#x21BB;</button>
+      <button id="btnAccount" class="hbtn" title="Account">&#x263A;</button>
+    </div>
+  </header>
+  <div id="signin" class="signin hidden">
+    <img src="icons/icon-512-transparent.png" alt="" width="120" height="120">
+    <p>Sign in with your Microsoft account to open your checklist from OneDrive.</p>
+    <button id="btnSignIn" class="primary">Sign in</button>
+  </div>
+  <main id="cols"></main>
+  <div id="status" class="status"></div>
+</div>
+<div id="sheet" class="sheet hidden"></div>
+<script src="config.js"></script>
+<script src="vendor/msal-browser-3.30.0.min.js"></script>
+<script src="merge.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

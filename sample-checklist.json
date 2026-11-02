@@ -1,0 +1,112 @@
+{
+  "weekStart": "2026-11-02",
+  "tasks": [
+    {
+      "id": "t1",
+      "day": "2026-11-02",
+      "text": "Call the bank about the deposit",
+      "notes": "",
+      "done": false,
+      "due": "2026-11-04"
+    },
+    {
+      "id": "t2",
+      "day": "2026-11-02",
+      "text": "Send engagement letter",
+      "notes": "",
+      "done": false
+    },
+    {
+      "id": "t3",
+      "day": "2026-11-02",
+      "text": "File the annual report",
+      "notes": "",
+      "done": true
+    }
+  ],
+  "payroll": [
+    {
+      "id": "p1",
+      "day": "2026-11-06",
+      "text": "Sample Restaurant LLC",
+      "notes": "",
+      "done": false
+    },
+    {
+      "id": "p2",
+      "day": "2026-11-03",
+      "text": "Example Pizza Inc",
+      "notes": "",
+      "done": true
+    },
+    {
+      "id": "p3",
+      "day": "2026-11-03",
+      "text": "Demo Furniture Inc — long company name to show wrapping",
+      "notes": "",
+      "done": false
+    }
+  ],
+  "bills": [
+    {
+      "id": "b1",
+      "day": "2026-11-05",
+      "text": "Office rent",
+      "notes": "",
+      "done": false,
+      "amount": 1200
+    }
+  ],
+  "bookkeeping": [
+    {
+      "id": "k1",
+      "day": "2026-11-02",
+      "text": "Sample bookkeeping client",
+      "notes": "",
+      "done": false
+    }
+  ],
+  "individualTaxes": [],
+  "companyTaxes": [],
+  "immigration": [
+    {
+      "id": "m1",
+      "day": "2026-11-02",
+      "text": "Sample case",
+      "notes": "",
+      "done": false
+    }
+  ],
+  "personalTasks": [
+    {
+      "id": "s1",
+      "day": "2026-11-02",
+      "text": "Book appointment",
+      "notes": "",
+      "done": false,
+      "due": "2026-10-30"
+    }
+  ],
+  "clientsToCharge": [
+    {
+      "id": "q1",
+      "day": "2026-11-02",
+      "text": "Sample client",
+      "notes": "",
+      "done": false,
+      "amount": 525
+    }
+  ],
+  "needFeedbackToCharge": [
+    {
+      "id": "f1",
+      "day": "2026-11-02",
+      "text": "Client waiting on approval",
+      "notes": "",
+      "done": false,
+      "amount": 300,
+      "due": "2026-11-07"
+    }
+  ],
+  "history": []
+}
