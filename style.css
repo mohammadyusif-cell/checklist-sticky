@@ -27,10 +27,21 @@ header#top { position: sticky; top: 0; z-index: 5; display: flex; align-items: c
 .card { border-radius: 16px; border: 1px solid var(--cb); background: var(--cbg); padding: 4px 6px 7px;
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: 0 4px 18px rgba(0,0,0,.18); }
 .card-h { display: flex; align-items: center; gap: 8px; padding: 8px 8px 6px; cursor: pointer; user-select: none; }
-.card-h .caret { color: var(--acc); font-size: 11px; width: 12px; transition: transform .15s; }
+.card-h .caret { color: var(--acc); font-size: 15px; width: 14px; text-align: center; transition: transform .18s ease; flex: none; }
 .card.collapsed .caret { transform: rotate(-90deg); }
 .card-h .name { flex: 1; font-weight: 700; font-size: 17px; color: var(--acc); }
-.card-h .count { font-size: 12px; color: var(--fg3); }
+.card-h .name .n { font-weight: 600; font-size: 14px; color: var(--fg3); }
+.card-h .count { font-size: 12px; color: var(--fg3); white-space: nowrap; }
+.card.collapsed { padding-bottom: 4px; }
+.card.collapsed .card-h { padding-bottom: 8px; }
+.lmv { display: none; gap: 4px; flex: none; }
+.reorder .lmv { display: flex; }
+.reorder .card-h .count { display: none; }
+.lmv button { width: 32px; height: 30px; border-radius: 8px; border: 1px solid var(--cb); background: rgba(255,255,255,.08); cursor: pointer; font-size: 13px; color: var(--acc); }
+.listbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: space-between; margin: 0 0 10px; padding: 8px 10px;
+  border-radius: 12px; border: 1px solid rgba(10,132,255,.5); background: rgba(10,132,255,.12); font-size: 12.5px; color: var(--fg2); }
+.listbar .lbtns { display: flex; gap: 6px; flex-wrap: wrap; }
+.listbar button { border-radius: 9px; border: 1px solid var(--border); background: rgba(255,255,255,.1); padding: 6px 10px; cursor: pointer; font-size: 13px; }
 .card.collapsed .body { display: none; }
 .row { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0; padding: 8px 8px 8px 0; border-radius: 10px;
   background: var(--rbg); border: 1px solid var(--rb); position: relative; }

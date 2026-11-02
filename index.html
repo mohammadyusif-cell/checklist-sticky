@@ -23,7 +23,7 @@
     </div>
     <div class="hbtns">
       <span id="sync" class="sync" title="Sync status"></span>
-      <button id="btnReorder" class="hbtn" title="Reorder">&#x21C5;</button>
+      <button id="btnReorder" class="hbtn" title="Reorder lists and items">&#x21C5;</button>
       <button id="btnRefresh" class="hbtn" title="Refresh">&#x21BB;</button>
       <button id="btnAccount" class="hbtn" title="Account">&#x263A;</button>
     </div>
@@ -32,6 +32,10 @@
     <img src="icons/icon-512-transparent.png" alt="" width="120" height="120">
     <p>Sign in with your Microsoft account to open your checklist from OneDrive.</p>
     <button id="btnSignIn" class="primary">Sign in</button>
+  </div>
+  <div id="listbar" class="listbar hidden">
+    <span>Reorder: use the arrows on a list's header to move the whole list, or on an item to move it.</span>
+    <span class="lbtns"><button id="btnCollapseAll">Collapse all</button><button id="btnExpandAll">Expand all</button><button id="btnResetOrder">Reset order</button></span>
   </div>
   <main id="cols"></main>
   <div id="status" class="status"></div>

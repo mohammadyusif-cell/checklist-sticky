@@ -15,6 +15,8 @@
     { key: 'bills', title: 'Bills Due', col2: 1, col4: 2, amount: true, hint: 'Add a bill...', due: false, byDay: true },
     { key: 'personalTasks', title: 'Personal Tasks', col2: 1, col4: 0, amount: false, hint: 'Add a personal task...', due: true }
   ];
+  // default top-to-bottom list order. It also gives the right order inside each column of the 2- and 4-column layouts.
+  var DEFAULT_ORDER = ['tasks', 'payroll', 'bookkeeping', 'individualTaxes', 'companyTaxes', 'immigration', 'bills', 'clientsToCharge', 'needFeedbackToCharge', 'personalTasks'];
   var ORDER4 = [['tasks', 'personalTasks'], ['payroll'], ['bills', 'clientsToCharge', 'needFeedbackToCharge'], ['bookkeeping', 'individualTaxes', 'companyTaxes', 'immigration']];
   var ACC = { tasks: '#8B8CFF', payroll: '#2DD4D4', bookkeeping: '#F5B942', individualTaxes: '#B67CFF', companyTaxes: '#F472B6',
     immigration: '#5AB8FF', bills: '#FF9F43', personalTasks: '#9AA9BF', clientsToCharge: '#E8E04A', needFeedbackToCharge: '#FFA38A' };
@@ -25,7 +27,55 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var state = { data: null, base: null, etag: null, dirty: false, saving: false, reorder: false,
-    collapsed: JSON.parse(localStorage.getItem('cs.collapsed') || '{}'), store: null, cols: 0 };
+    collapsed: readLS('cs.collapsed', {}), listOrder: null, listCols: { 2: readLS('cs.listCols2', {}), 4: readLS('cs.listCols4', {}) }, store: null, cols: 0 };
+  state.listOrder = normalizeOrder(readLS('cs.listOrder', []));
+  function readLS(k, dflt) { try { var v = JSON.parse(localStorage.getItem(k) || 'null'); return v && typeof v === 'object' ? v : dflt; } catch (e) { return dflt; } }
+
+  // ------------------------------------------------------------ list layout (per device: localStorage only, never checklist.json)
+  // saved order -> known keys only, no repeats; lists missing from it go back in at their default spot
+  function normalizeOrder(saved) {
+    var out = [];
+    (Array.isArray(saved) ? saved : []).forEach(function (k) { if (DEFAULT_ORDER.indexOf(k) >= 0 && out.indexOf(k) < 0) out.push(k); });
+    DEFAULT_ORDER.forEach(function (k, i) {
+      if (out.indexOf(k) >= 0) return;
+      var at = 0;   // after the nearest list that comes before it by default
+      for (var j = i - 1; j >= 0; j--) { var p = out.indexOf(DEFAULT_ORDER[j]); if (p >= 0) { at = p + 1; break; } }
+      out.splice(at, 0, k);
+    });
+    return out;
+  }
+  function saveLayout() {
+    localStorage.setItem('cs.collapsed', JSON.stringify(state.collapsed));
+    localStorage.setItem('cs.listOrder', JSON.stringify(state.listOrder));
+    localStorage.setItem('cs.listCols2', JSON.stringify(state.listCols[2]));
+    localStorage.setItem('cs.listCols4', JSON.stringify(state.listCols[4]));
+  }
+  function colCount() { var w = window.innerWidth; return w >= 1600 ? 4 : (w >= 900 ? 2 : 1); }
+  function homeCol(key, n) {
+    if (n === 1) return 0;
+    var o = state.listCols[n][key];
+    if (typeof o === 'number' && o >= 0 && o < n) return o;
+    return n === 4 ? ORDER4.findIndex(function (g) { return g.indexOf(key) >= 0; }) : defOf(key).col2;
+  }
+  // lists in one column, top to bottom
+  function columnLists(ci, n) { return state.listOrder.filter(function (k) { return homeCol(k, n) === ci; }); }
+  function moveList(key, dir) {
+    var n = colCount(), o = state.listOrder, peers = columnLists(homeCol(key, n), n), pos = peers.indexOf(key);
+    if (dir === 'left' || dir === 'right') {
+      var c = homeCol(key, n) + (dir === 'left' ? -1 : 1);
+      if (n === 1 || c < 0 || c >= n) { setStatus('Already in the ' + (dir === 'left' ? 'first' : 'last') + ' column.'); return; }
+      state.listCols[n][key] = c;
+    } else {
+      var target = dir === 'top' ? peers[0] : dir === 'up' ? peers[pos - 1] : peers[pos + 1];
+      if (target == null || target === key) { setStatus(dir === 'down' ? 'Already at the bottom.' : 'Already at the top.'); return; }
+      o.splice(o.indexOf(key), 1);
+      var to = o.indexOf(target); if (dir === 'down') to += 1;
+      o.splice(to, 0, key);
+    }
+    saveLayout(); render();
+  }
+  function setAllCollapsed(v) { DEFAULT_ORDER.forEach(function (k) { state.collapsed[k] = v; }); saveLayout(); render(); }
+  function resetLayout() { state.listOrder = DEFAULT_ORDER.slice(); state.listCols = { 2: {}, 4: {} }; saveLayout(); render(); setStatus('List order reset.'); }
 
   // ------------------------------------------------------------ helpers
   function clone(x) { return JSON.parse(JSON.stringify(x)); }
@@ -207,29 +257,40 @@
     var ws = parseDay(state.data.weekStart);
     if (ws) { var we = new Date(ws); we.setDate(we.getDate() + 6);
       $('week').textContent = 'Week of ' + DAYS[ws.getDay()] + ' ' + MON[ws.getMonth()] + ' ' + ws.getDate() + ' \u2013 ' + DAYS[we.getDay()] + ' ' + MON[we.getMonth()] + ' ' + we.getDate(); }
-    var w = window.innerWidth, n = w >= 1600 ? 4 : (w >= 900 ? 2 : 1);
+    var n = colCount();
     var y = window.scrollY, h = document.documentElement.scrollHeight;
     var cols = $('cols'); cols.className = n === 4 ? 'c4' : n === 2 ? 'c2' : ''; cols.classList.toggle('reorder', state.reorder);
     cols.innerHTML = '';
     var colEls = []; for (var i = 0; i < n; i++) { var c = el('div', 'col'); colEls.push(c); cols.appendChild(c); }
-    var order = n === 4 ? [].concat.apply([], ORDER4) : DEFS.map(function (d) { return d.key; });
-    order.forEach(function (key) {
-      var def = defOf(key), ci = n === 4 ? ORDER4.findIndex(function (g) { return g.indexOf(key) >= 0; }) : n === 2 ? def.col2 : 0;
-      colEls[ci].appendChild(card(def));
-    });
+    $('listbar').classList.toggle('hidden', !state.reorder);
+    state.listOrder.forEach(function (key) { colEls[homeCol(key, n)].appendChild(card(defOf(key), n)); });
     if (state.cols && state.cols !== n && h > 0) window.scrollTo(0, y * document.documentElement.scrollHeight / h);
     state.cols = n;
   }
-  function card(def) {
+  function card(def, n) {
     var key = def.key, acc = ACC[key];
     var c = el('section', 'card ' + key + (state.collapsed[key] ? ' collapsed' : ''));
     c.style.setProperty('--acc', acc); c.style.setProperty('--cbg', hexA(acc, .09)); c.style.setProperty('--cb', hexA(acc, .38));
     c.style.setProperty('--rbg', hexA(acc, .07)); c.style.setProperty('--rb', hexA(acc, .22));
     c.style.setProperty('--tbg', hexA(acc, .16)); c.style.setProperty('--tb', hexA(acc, .5)); c.style.setProperty('--tfg', lighten(acc, .35));
     var items = list(key), done = items.filter(function (i) { return i.done; }).length;
-    var h = el('div', 'card-h'); h.appendChild(el('span', 'caret', '\u25BC')); h.appendChild(el('span', 'name', def.title));
-    h.appendChild(el('span', 'count', done + ' of ' + items.length + ' done'));
-    h.onclick = function () { state.collapsed[key] = !state.collapsed[key]; localStorage.setItem('cs.collapsed', JSON.stringify(state.collapsed)); render(); };
+    var h = el('div', 'card-h'), coll = !!state.collapsed[key];
+    h.setAttribute('role', 'button'); h.setAttribute('aria-expanded', String(!coll));
+    h.title = coll ? 'Tap to expand' : 'Tap to collapse';
+    h.appendChild(el('span', 'caret', '\u25BE'));
+    var nm = el('span', 'name', def.title + ' '); nm.appendChild(el('span', 'n', '(' + items.length + ')')); h.appendChild(nm);
+    if (items.length) h.appendChild(el('span', 'count', done + ' of ' + items.length + ' done'));
+    // reorder mode: move the whole list (up/down/top; left/right between columns in the wide layouts)
+    var lm = el('div', 'lmv');
+    function lbtn(label, title, dir) { var b = el('button', '', label); b.title = title; b.setAttribute('aria-label', title);
+      b.onclick = function (e) { e.stopPropagation(); moveList(key, dir); }; lm.appendChild(b); }
+    lbtn('\u21C8', 'Move list to top', 'top'); lbtn('\u25B2', 'Move list up', 'up'); lbtn('\u25BC', 'Move list down', 'down');
+    if (n > 1) { lbtn('\u25C0', 'Move list to the column on the left', 'left'); lbtn('\u25B6', 'Move list to the column on the right', 'right'); }
+    h.appendChild(lm);
+    h.onclick = function () {   // toggle in place so the chevron animates
+      state.collapsed[key] = !state.collapsed[key]; saveLayout();
+      var cc = !!state.collapsed[key]; c.classList.toggle('collapsed', cc); h.setAttribute('aria-expanded', String(!cc)); h.title = cc ? 'Tap to expand' : 'Tap to collapse';
+    };
     c.appendChild(h);
     var body = el('div', 'body');
     displayOrder(key).forEach(function (p) { body.appendChild(row(def, p.it)); });
@@ -304,6 +365,9 @@
     state.store = demo ? DemoStore() : GraphStore();
     window.__cs = state;   // for testing
     $('btnReorder').onclick = function () { state.reorder = !state.reorder; this.classList.toggle('on', state.reorder); render(); };
+    $('btnCollapseAll').onclick = function () { setAllCollapsed(true); };
+    $('btnExpandAll').onclick = function () { setAllCollapsed(false); };
+    $('btnResetOrder').onclick = function () { if (confirm('Put the lists back in their default order?')) resetLayout(); };
     $('btnRefresh').onclick = function () { flush().then(function () { return poll(true); }); };
     $('btnAccount').onclick = function () { var a = state.store.account && state.store.account(); if (state.store.signOut && confirm('Signed in as ' + a + '. Sign out?')) state.store.signOut(); else if (!state.store.signOut) alert(a); };
     $('btnSignIn').onclick = function () { state.store.signIn(); };
@@ -315,7 +379,7 @@
         setStatus('Loaded from ' + state.store.name, 'ok');
         setInterval(function () { if (!document.hidden) poll(); }, (CFG.pollSeconds || 15) * 1000);
         document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); else flush(); });
-        window.addEventListener('resize', function () { var n = window.innerWidth >= 1600 ? 4 : window.innerWidth >= 900 ? 2 : 1; if (n !== state.cols) render(); });
+        window.addEventListener('resize', function () { if (colCount() !== state.cols) render(); });
       });
     }).catch(function (e) { if (!(e && e.redirecting)) setStatus('Could not load: ' + (e && e.message || JSON.stringify(e)), 'err'); });
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
