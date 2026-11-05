@@ -87,6 +87,8 @@
   function today() { var d = new Date(); d.setHours(0, 0, 0, 0); return d; }
   function tagText(d) { return DAYS[d.getDay()] + ' ' + String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + '/' + d.getFullYear(); }
   function money(v) { if (v === '' || v == null || isNaN(+v)) return ''; return '$' + (+v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  // due = not done yet (not a calendar date). Empty lists omit this phrase.
+  function countLabel(done, total) { return done + ' done \u00B7 ' + (total - done) + ' due'; }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function newId(key) { var a = new Uint8Array(4); crypto.getRandomValues(a); return (PREFIX[key] || 'x') + Array.from(a, function (b) { return b.toString(16).padStart(2, '0'); }).join(''); }
   function list(key) { var d = state.data; if (!Array.isArray(d[key])) d[key] = []; return d[key]; }
@@ -281,6 +283,12 @@
     var ws = parseDay(state.data.weekStart);
     if (ws) { var we = new Date(ws); we.setDate(we.getDate() + 6);
       $('week').textContent = 'Week of ' + DAYS[ws.getDay()] + ' ' + MON[ws.getMonth()] + ' ' + ws.getDate() + ' \u2013 ' + DAYS[we.getDay()] + ' ' + MON[we.getMonth()] + ' ' + we.getDate(); }
+    var sum = 0, sumDone = 0;
+    state.listOrder.forEach(function (key) {
+      var items = list(key); sum += items.length;
+      items.forEach(function (it) { if (it.done) sumDone++; });
+    });
+    $('tally').textContent = sum ? (sum + ' total \u00B7 ' + countLabel(sumDone, sum)) : '';
     var n = colCount();
     var y = window.scrollY, h = document.documentElement.scrollHeight;
     var cols = $('cols'); cols.className = n === 4 ? 'c4' : n === 2 ? 'c2' : ''; cols.classList.toggle('reorder', state.reorder);
@@ -303,7 +311,7 @@
     h.title = coll ? 'Tap to expand' : 'Tap to collapse';
     h.appendChild(el('span', 'caret', '\u25BE'));
     var nm = el('span', 'name', def.title + ' '); nm.appendChild(el('span', 'n', '(' + items.length + ')')); h.appendChild(nm);
-    if (items.length) h.appendChild(el('span', 'count', done + ' of ' + items.length + ' done'));
+    if (items.length) h.appendChild(el('span', 'count', countLabel(done, items.length)));
     // reorder mode: move the whole list (up/down/top; left/right between columns in the wide layouts)
     var lm = el('div', 'lmv');
     function lbtn(label, title, dir) { var b = el('button', '', label); b.title = title; b.setAttribute('aria-label', title);
