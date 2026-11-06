@@ -1,0 +1,102 @@
+# Build and launch-test the Apple Silicon Mac app. This does not deploy the website.
+name: macOS desktop
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Merge tests
+        run: node merge.test.js
+      - name: Desktop tests
+        working-directory: desktop
+        run: |
+          npm ci
+          npm test
+
+  mac:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install
+        working-directory: desktop
+        run: npm ci
+      - name: Host
+        run: |
+          sw_vers
+          uname -m
+          node -v
+      - name: Package unsigned app
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --mac dir --arm64 -c.mac.identity=null
+      - name: Ad-hoc sign
+        working-directory: desktop
+        run: |
+          APP="dist/mac-arm64/Checklist Sticky.app"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --verbose=2 "$APP"
+          codesign -dv --verbose=4 "$APP" 2>&1 | head -n 40
+          file "$APP/Contents/MacOS/Checklist Sticky"
+      - name: Launch smoke
+        working-directory: desktop
+        env:
+          CHECKLIST_SMOKE: "1"
+          CHECKLIST_FORCE_DEMO: "1"
+          ELECTRON_ENABLE_LOGGING: "1"
+          CHECKLIST_SMOKE_RESULT: ${{ github.workspace }}/desktop/dist/smoke-result.json
+        run: |
+          APP="dist/mac-arm64/Checklist Sticky.app"
+          set +e
+          "$APP/Contents/MacOS/Checklist Sticky" --smoke
+          code=$?
+          set -e
+          echo "smoke exit $code"
+          cat dist/smoke-result.json
+          test "$code" -eq 0
+          node -e "const r=require('./dist/smoke-result.json'); if(!r.ok) process.exit(1); const hosts=r.blockedMicrosoftHosts||[]; if(hosts.length) process.exit(1);"
+      - name: Zip and disk image
+        working-directory: desktop
+        env:
+          CHECKLIST_SIGNATURE: ad-hoc
+        run: node scripts/package-mac.js
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: Checklist-Sticky-mac-arm64
+          if-no-files-found: error
+          path: |
+            desktop/dist/Checklist-Sticky-mac-arm64.zip
+            desktop/dist/Checklist-Sticky-mac-arm64.dmg
+            desktop/dist/build-report.json
+            desktop/dist/SHA256SUMS.txt
+            desktop/dist/smoke-result.json
+          retention-days: 14

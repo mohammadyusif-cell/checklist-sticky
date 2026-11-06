@@ -1,0 +1,22 @@
+{
+  "name": "checklist-sticky-desktop",
+  "productName": "Checklist Sticky",
+  "version": "1.0.0",
+  "private": true,
+  "description": "macOS desktop shell for Checklist Sticky. Same checklist page, system-browser Microsoft sign-in, no client secret.",
+  "author": "Mohammad",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "demo": "electron . --demo",
+    "smoke": "electron . --smoke",
+    "test": "node --test test/*.test.js",
+    "icon": "node scripts/build-icon.js",
+    "pack:mac": "electron-builder --mac dir --arm64 -c.mac.identity=null && node scripts/package-mac.js"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0",
+    "jsdom": "31.0.0"
+  }
+}

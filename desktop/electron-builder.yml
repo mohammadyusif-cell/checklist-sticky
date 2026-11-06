@@ -1,0 +1,42 @@
+appId: com.mohammadyusif.checkliststicky
+productName: Checklist Sticky
+copyright: Checklist Sticky. Not notarized.
+publish: null
+asar: true
+directories:
+  output: dist
+  buildResources: build
+files:
+  - src/**/*
+  - package.json
+extraResources:
+  - from: ".."
+    to: web
+    filter:
+      - index.html
+      - app.js
+      - style.css
+      - merge.js
+      - config.js
+      - sample-checklist.json
+      - manifest.webmanifest
+      - favicon.ico
+      - icons/**
+      - vendor/msal-browser-3.30.0.min.js
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.icns
+  target:
+    - target: dir
+      arch:
+        - arm64
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  notarize: false
+  minimumSystemVersion: "13.0"
+  darkModeSupport: true
+  extendInfo:
+    LSMinimumSystemVersion: "13.0"
+    CFBundleDisplayName: Checklist Sticky
+    NSHighResolutionCapable: true
