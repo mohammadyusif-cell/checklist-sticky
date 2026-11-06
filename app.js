@@ -50,7 +50,11 @@
     localStorage.setItem('cs.listCols2', JSON.stringify(state.listCols[2]));
     localStorage.setItem('cs.listCols4', JSON.stringify(state.listCols[4]));
   }
-  function colCount() { var w = window.innerWidth; return w >= 1600 ? 4 : (w >= 900 ? 2 : 1); }
+  function colCount() {
+    var forced = document.documentElement.getAttribute('data-cols');
+    if (forced === '1' || forced === '2' || forced === '4') return +forced;
+    var w = window.innerWidth; return w >= 1600 ? 4 : (w >= 900 ? 2 : 1);
+  }
   function homeCol(key, n) {
     if (n === 1) return 0;
     var o = state.listCols[n][key];
@@ -212,6 +216,7 @@
       state.dirty = JSON.stringify(state.data) !== JSON.stringify(snapshot);
       if (state.dirty) return flush();
       setStatus('Saved ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), 'ok');
+      return r;
     }).catch(function (e) {
       state.saving = false;
       if (e && e.redirecting) return;
@@ -390,19 +395,84 @@
     function close() { s.classList.add('hidden'); s.innerHTML = ''; }
   }
 
+  function DesktopStore(api) {
+    function unwrap(p) {
+      return Promise.resolve(p).then(function (r) {
+        if (r && r.error === 'notFound') throw { notFound: true };
+        if (r && r.error === 'signin') throw { signin: true };
+        if (r && r.error) throw new Error(r.error);
+        return r;
+      });
+    }
+    return {
+      name: 'OneDrive',
+      signedIn: function () { return api.signedIn(); },
+      signIn: function () { return api.signIn(); },
+      signOut: function () { return api.signOut().then(function () { location.reload(); }); },
+      account: function () { return api.accountName(); },
+      etag: function () { return unwrap(api.etag()).then(function (r) { return r.etag; }); },
+      load: function () { return unwrap(api.load()); },
+      save: function (data, etag) { return unwrap(api.save(data, etag)); }
+    };
+  }
+  function setupDesktopChrome(api, boot) {
+    document.documentElement.dataset.desktop = '1';
+    if (boot && boot.vibrancy) document.documentElement.dataset.vibrancy = '1';
+    var pin = el('button', 'hbtn' + (boot && boot.alwaysOnTop ? ' on' : ''), '\uD83D\uDCCC');
+    pin.id = 'btnPin';
+    pin.title = boot && boot.alwaysOnTop ? 'Window stays on top' : 'Keep window on top';
+    pin.setAttribute('aria-pressed', boot && boot.alwaysOnTop ? 'true' : 'false');
+    pin.onclick = function () {
+      var next = !pin.classList.contains('on');
+      api.setAlwaysOnTop(next).then(function (on) {
+        pin.classList.toggle('on', !!on);
+        pin.setAttribute('aria-pressed', on ? 'true' : 'false');
+        pin.title = on ? 'Window stays on top' : 'Keep window on top';
+      });
+    };
+    $('btnReorder').parentNode.insertBefore(pin, $('btnReorder').parentNode.firstChild);
+    var note = el('p', 'fine', 'Sign-in opens your web browser and comes back to this app. Microsoft\u2019s page is not loaded inside the window. If your checklist is not already on OneDrive, nothing is created or changed.');
+    note.id = 'signinNote';
+    $('signin').insertBefore(note, $('btnSignIn'));
+    var sample = el('button', 'ghost', 'Use sample checklist');
+    sample.id = 'btnSample';
+    sample.type = 'button';
+    sample.onclick = function () { api.useSample().then(function () { location.reload(); }); };
+    $('btnSignIn').insertAdjacentElement('afterend', sample);
+  }
+
   // ------------------------------------------------------------ start
   function start() {
-    var demo = !CFG.clientId || /[?&]demo/.test(location.search);
-    if (!demo && typeof msal === 'undefined') { setStatus('Sign-in library failed to load.', 'err'); return; }
-    state.store = demo ? DemoStore() : GraphStore();
+    var desktopApi = window.checklistDesktop || null;
+    var bootP = desktopApi ? desktopApi.getBoot() : Promise.resolve(null);
+    bootP.then(function (boot) {
+    var demo = boot ? !!boot.demo : (!CFG.clientId || /[?&]demo/.test(location.search));
+    if (!demo && !desktopApi && typeof msal === 'undefined') { setStatus('Sign-in library failed to load.', 'err'); return; }
+    state.store = demo ? DemoStore() : (desktopApi ? DesktopStore(desktopApi) : GraphStore());
+    if (demo && desktopApi && state.store.account) state.store.account = function () { return 'sample checklist on this Mac'; };
     window.__cs = state;   // for testing
+    window.__csFlush = flush;
+    if (desktopApi) setupDesktopChrome(desktopApi, boot);
     $('btnReorder').onclick = function () { state.reorder = !state.reorder; this.classList.toggle('on', state.reorder); render(); };
     $('btnCollapseAll').onclick = function () { setAllCollapsed(true); };
     $('btnExpandAll').onclick = function () { setAllCollapsed(false); };
     $('btnResetOrder').onclick = function () { if (confirm('Put the lists back in their default order?')) resetLayout(); };
     $('btnRefresh').onclick = function () { flush().then(function () { return poll(true); }); };
     $('btnAccount').onclick = function () { var a = state.store.account && state.store.account(); if (state.store.signOut && confirm('Signed in as ' + a + '. Sign out?')) state.store.signOut(); else if (!state.store.signOut) alert(a); };
-    $('btnSignIn').onclick = function () { state.store.signIn(); };
+    $('btnSignIn').onclick = function () {
+      var btn = this, p = state.store.signIn && state.store.signIn();
+      if (desktopApi && p && typeof p.then === 'function') {
+        btn.disabled = true;
+        setStatus('Waiting for the browser sign-in\u2026', 'busy');
+        p.then(function (r) {
+          if (r && r.error) throw new Error(r.error);
+          location.reload();
+        }).catch(function (e) {
+          btn.disabled = false;
+          setStatus('Sign-in did not finish (' + (e && e.message || e) + '). Nothing was changed on OneDrive.', 'err');
+        });
+      }
+    };
     $('btnRetry').onclick = function () { location.reload(); };
     state.store.signedIn().then(function (ok) {
       if (!ok) { $('signin').classList.remove('hidden'); setStatus(''); return; }
@@ -421,7 +491,10 @@
       if (e && e.notFound) { $('missing').classList.remove('hidden'); setStatus(''); return; }
       setStatus('Could not load: ' + (e && e.message || JSON.stringify(e)), 'err');
     });
-    if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
+    if (!desktopApi && 'serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
+    }).catch(function (e) {
+      setStatus('Could not start: ' + (e && e.message || e), 'err');
+    });
   }
   start();
 })();

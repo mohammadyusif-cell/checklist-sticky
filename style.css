@@ -82,3 +82,22 @@ header#top { position: sticky; top: 0; z-index: 5; display: flex; align-items: c
 .sheet .btns button { flex: 1 1 30%; border-radius: 10px; padding: 11px 6px; border: 1px solid var(--border); background: rgba(255,255,255,.1); cursor: pointer; }
 .sheet .btns .danger { color: #ff8a8a; border-color: rgba(255,107,107,.5); } .sheet .btns .primary { background: var(--blue); border: 0; }
 @media (hover: hover) { .row:hover .mv { display: flex; } }
+
+/* Desktop shell only. The website never sets these attributes. */
+html[data-desktop="1"] body { -webkit-font-smoothing: antialiased; }
+html[data-vibrancy="1"], html[data-vibrancy="1"] body { background: transparent; }
+html[data-vibrancy="1"] #app { background: rgba(22,24,30,.72); min-height: 100%; }
+html[data-desktop="1"] header#top { padding-left: 84px; -webkit-app-region: drag; }
+html[data-desktop="1"][data-cols="4"] header#top { padding-left: 16px; }
+html[data-desktop="1"] header#top button, html[data-desktop="1"] header#top .hbtns, html[data-desktop="1"] header#top .sync { -webkit-app-region: no-drag; }
+html[data-desktop="1"] #btnPin { font-size: 14px; }
+html[data-text="large"] body { font-size: 18px; }
+html[data-text="large"] .title { font-size: 22px; }
+html[data-text="large"] .week, html[data-text="large"] .tally { font-size: 15px; }
+html[data-text="large"] .card-h .name { font-size: 20px; }
+html[data-text="large"] .text { font-size: 18px; }
+html[data-text="large"] .notes { font-size: 15px; }
+html[data-text="large"] .card-h .count { font-size: 14px; }
+html[data-text="large"] .add input { font-size: 18px; }
+.signin .fine { font-size: 13px; max-width: 460px; margin: 0 auto 16px; color: var(--fg2); }
+.signin .ghost { background: transparent; color: var(--fg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 22px; font-weight: 600; cursor: pointer; margin-left: 8px; }
