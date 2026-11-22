@@ -74,7 +74,7 @@ for (const file of files) {
 }
 
 if (fs.existsSync(zip)) fs.unlinkSync(zip);
-const zipResult = spawnSync('zip', ['-y', '-r', '-X', zip, 'Checklist Sticky.app'], {
+const zipResult = spawnSync('zip', ['-9', '-y', '-r', '-X', zip, 'Checklist Sticky.app'], {
   cwd: path.dirname(app),
   stdio: 'inherit'
 });
@@ -99,9 +99,12 @@ const report = {
   builtOn: process.platform + ' ' + process.arch,
   signing: process.env.CHECKLIST_SIGNATURE || 'unsigned',
   notarized: false,
+  transferLimitBytes: 104857600,
   zip: { file: path.basename(zip), bytes: fs.statSync(zip).size, sha256: sha256(zip) },
   dmg: dmg ? { file: path.basename(dmg), bytes: fs.statSync(dmg).size, sha256: sha256(dmg) } : null
 };
+report.zip.under100MiB = report.zip.bytes <= report.transferLimitBytes;
+if (report.dmg) report.dmg.under100MiB = report.dmg.bytes <= report.transferLimitBytes;
 fs.writeFileSync(path.join(dist, 'build-report.json'), JSON.stringify(report, null, 2) + '\n');
 fs.writeFileSync(path.join(dist, 'SHA256SUMS.txt'),
   report.zip.sha256 + '  ' + report.zip.file + '\n' +

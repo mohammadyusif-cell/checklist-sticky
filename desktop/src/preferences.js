@@ -44,19 +44,39 @@ function writeWindowState(file, state) {
   return clean;
 }
 
-function readMode(file) {
+function readModeRecord(file) {
   const json = readJson(file);
-  if (json && (json.mode === 'demo' || json.mode === 'cloud')) return json.mode;
-  return null;
+  if (!json || (json.mode !== 'demo' && json.mode !== 'cloud' && json.mode !== 'local')) {
+    return { mode: null, explicitDemo: false };
+  }
+  return { mode: json.mode, explicitDemo: json.explicitDemo === true };
 }
 
-function writeMode(file, mode) {
+function readMode(file) {
+  return readModeRecord(file).mode;
+}
+
+function writeMode(file, mode, options) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  if (mode !== 'demo' && mode !== 'cloud') {
+  if (mode !== 'demo' && mode !== 'cloud' && mode !== 'local') {
     if (fs.existsSync(file)) fs.unlinkSync(file);
     return;
   }
-  fs.writeFileSync(file, JSON.stringify({ mode: mode }) + '\n', { mode: 0o600 });
+  const body = { mode: mode };
+  if (mode === 'demo' && options && options.explicitDemo === true) body.explicitDemo = true;
+  fs.writeFileSync(file, JSON.stringify(body) + '\n', { mode: 0o600 });
+}
+
+function readLocalFolder(file) {
+  const json = readJson(file);
+  if (json && typeof json.folder === 'string' && json.folder && !json.folder.includes('\0')) return json.folder;
+  return null;
+}
+
+function writeLocalFolder(file, folder) {
+  if (typeof folder !== 'string' || !folder || folder.includes('\0')) throw new Error('Refusing an empty local folder.');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ folder: folder }) + '\n', { mode: 0o600 });
 }
 
 module.exports = {
@@ -65,5 +85,8 @@ module.exports = {
   readWindowState,
   writeWindowState,
   readMode,
-  writeMode
+  readModeRecord,
+  writeMode,
+  readLocalFolder,
+  writeLocalFolder
 };

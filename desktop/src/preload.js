@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld('checklistDesktop', {
   signIn: function () { return ipcRenderer.invoke('checklist:sign-in'); },
   signOut: function () { return ipcRenderer.invoke('checklist:sign-out'); },
   useSample: function () { return ipcRenderer.invoke('checklist:use-sample'); },
+  onExternalChange: function (callback) {
+    ipcRenderer.on('checklist:external', function () { callback(); });
+  },
   load: function () { return ipcRenderer.invoke('checklist:load'); },
   save: function (data, etag) { return ipcRenderer.invoke('checklist:save', data, etag); },
   etag: function () { return ipcRenderer.invoke('checklist:etag'); },

@@ -3,6 +3,9 @@ productName: Checklist Sticky
 copyright: Checklist Sticky. Not notarized.
 publish: null
 asar: true
+electronLanguages:
+  - en-US
+  - en
 directories:
   output: dist
   buildResources: build

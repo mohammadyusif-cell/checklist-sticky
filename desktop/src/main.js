@@ -7,6 +7,7 @@ const path = require('path');
 
 const auth = require('./auth');
 const graph = require('./graph');
+const localFile = require('./local-file');
 const preferences = require('./preferences');
 const tokenStoreMod = require('./token-store');
 const webroot = require('./webroot');
@@ -37,6 +38,7 @@ const webRoot = app.isPackaged
 const modeFile = () => path.join(app.getPath('userData'), 'checklist-mode.json');
 const windowFile = () => path.join(app.getPath('userData'), 'window-state.json');
 const tokenFile = () => path.join(app.getPath('userData'), 'microsoft-session.bin');
+const localFolderFile = () => path.join(app.getPath('userData'), 'local-folder.json');
 
 function webConfig() {
   return auth.readWebConfig(fs.readFileSync(path.join(webRoot, 'config.js'), 'utf8'));
@@ -106,14 +108,141 @@ async function isSignedIn() {
   }
 }
 
-async function bootInfo() {
-  const mode = preferences.readMode(modeFile());
-  const windowState = preferences.readWindowState(windowFile());
-  const signedIn = await isSignedIn();
+let watcher = null;
+let watchTimer = null;
+
+function stopWatch() {
+  clearTimeout(watchTimer);
+  if (watcher) {
+    try { watcher.close(); } catch (e) { /* already closed */ }
+    watcher = null;
+  }
+}
+
+function startWatch(file) {
+  stopWatch();
+  try {
+    watcher = fs.watch(path.dirname(file), { persistent: false }, function (_event, filename) {
+      if (filename && filename !== localFile.CHECKLIST_NAME) return;
+      clearTimeout(watchTimer);
+      watchTimer = setTimeout(function () {
+        if (win && !win.isDestroyed()) win.webContents.send('checklist:external');
+      }, 400);
+    });
+  } catch (e) { /* the load path reports a missing file */ }
+}
+
+function diskIo() {
   return {
-    demo: forceDemo || mode === 'demo',
+    readdir: function (dir) { return fs.readdirSync(dir); },
+    lstat: function (file) { return fs.lstatSync(file); }
+  };
+}
+
+function regularChecklist(file) {
+  if (!file) return null;
+  try {
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.isSymbolicLink()) return null;
+    return file;
+  } catch (e) {
+    return null;
+  }
+}
+
+function localAccount(file) {
+  const folder = path.dirname(file);
+  return path.basename(path.dirname(folder)) + '/' + path.basename(folder);
+}
+
+function activeMode() {
+  if (forceDemo) return 'demo';
+  return preferences.readMode(modeFile()) || 'signin';
+}
+
+function openLocal() {
+  const folder = preferences.readLocalFolder(localFolderFile());
+  const file = localFile.checklistFileIn(folder || '');
+  if (!file) {
+    const err = new Error('not found');
+    err.notFound = true;
+    throw err;
+  }
+  return localFile.createLocalStore({ file: file });
+}
+
+async function pickLocalFolder() {
+  const result = await dialog.showOpenDialog(win && !win.isDestroyed() ? win : undefined, {
+    title: 'Checklist Sticky folder',
+    buttonLabel: 'Use This Folder',
+    message: 'Choose the Checklist Sticky folder that already contains checklist.json.',
+    properties: ['openDirectory']
+  });
+  if (result.canceled || !result.filePaths || !result.filePaths[0]) return { mode: 'signin', source: 'cancelled', needsPicker: false };
+  const file = localFile.checklistFileIn(result.filePaths[0]);
+  const existing = regularChecklist(file);
+  if (!existing) {
+    await dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
+      type: 'info',
+      title: 'Checklist Sticky',
+      message: 'That folder has no checklist.json. Nothing was created.'
+    });
+    return { mode: 'signin', source: 'cancelled', needsPicker: false };
+  }
+  let stat;
+  try { stat = fs.lstatSync(existing); } catch (e) { stat = null; }
+  if (localFile.isDatalessStat(stat)) {
+    await dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
+      type: 'info',
+      title: 'Checklist Sticky',
+      message: localFile.DATALESS_MESSAGE
+    });
+    return { mode: 'signin', source: 'dataless', needsPicker: false };
+  }
+  return { mode: 'local', source: 'picked', file: existing, needsPicker: false };
+}
+
+function rememberLocal(file) {
+  preferences.writeMode(modeFile(), 'local');
+  preferences.writeLocalFolder(localFolderFile(), path.dirname(file));
+  startWatch(file);
+}
+
+async function decideMode() {
+  const saved = preferences.readModeRecord(modeFile());
+  const remembered = forceDemo ? null : regularChecklist(localFile.checklistFileIn(preferences.readLocalFolder(localFolderFile()) || ''));
+  const candidates = forceDemo ? [] : localFile.findCandidateFiles(os.homedir(), diskIo());
+  let decision = localFile.resolveDataMode({
+    platform: process.platform,
+    forceDemo: forceDemo,
+    savedMode: saved.mode,
+    explicitDemo: saved.explicitDemo,
+    candidates: candidates,
+    rememberedFile: remembered
+  });
+  if (decision.needsPicker && !forceDemo) decision = await pickLocalFolder();
+  if (decision.mode === 'local' && decision.file) rememberLocal(decision.file);
+  else stopWatch();
+  return decision;
+}
+
+async function bootInfo() {
+  const decision = await decideMode();
+  const windowState = preferences.readWindowState(windowFile());
+  let signedIn = false;
+  let account = '';
+  if (decision.mode === 'local' && decision.file) {
+    signedIn = true;
+    account = localAccount(decision.file);
+  } else if (decision.mode === 'cloud') {
+    signedIn = await isSignedIn();
+    account = signedIn ? await currentAccount() : '';
+  }
+  return {
+    demo: decision.mode === 'demo',
+    mode: decision.mode,
     signedIn: signedIn,
-    account: signedIn ? await currentAccount() : '',
+    account: account,
     alwaysOnTop: windowState.alwaysOnTop === true,
     vibrancy: process.platform === 'darwin',
     platform: process.platform,
@@ -194,8 +323,7 @@ function saveWindowState() {
 
 function refreshMenu() {
   if (!win || win.isDestroyed()) return;
-  const mode = preferences.readMode(modeFile());
-  const demo = forceDemo || mode === 'demo';
+  const mode = activeMode();
   isSignedIn().then(function (signedIn) {
     if (!win || win.isDestroyed()) return;
     const onTop = win.isAlwaysOnTop();
@@ -205,8 +333,10 @@ function refreshMenu() {
         { role: 'about' },
         { type: 'separator' },
         { label: 'Sign in to OneDrive…', enabled: !smoke, click: function () { menuSignIn(); } },
+        { label: 'Use Local OneDrive Folder', enabled: !smoke, click: function () { menuLocal(); } },
+        { label: 'Change Local Folder…', enabled: !smoke, click: function () { menuPick(); } },
         { label: 'Use Sample Checklist', click: function () { menuSample(); } },
-        { label: 'Sign Out', enabled: signedIn && !demo && !smoke, click: function () { menuSignOut(); } }
+        { label: 'Sign Out', enabled: mode === 'cloud' && signedIn && !smoke, click: function () { menuSignOut(); } }
       ]
     };
     if (process.platform === 'darwin') {
@@ -288,14 +418,43 @@ function menuSignIn() {
 }
 
 function menuSample() {
-  preferences.writeMode(modeFile(), 'demo');
+  preferences.writeMode(modeFile(), 'demo', { explicitDemo: true });
+  stopWatch();
   if (win && !win.isDestroyed()) win.webContents.reload();
   refreshMenu();
 }
 
+function menuLocal() {
+  const remembered = regularChecklist(localFile.checklistFileIn(preferences.readLocalFolder(localFolderFile()) || ''));
+  const candidates = localFile.findCandidateFiles(os.homedir(), diskIo());
+  const decision = localFile.resolveDataMode({
+    platform: process.platform,
+    forceDemo: false,
+    savedMode: null,
+    explicitDemo: false,
+    candidates: candidates,
+    rememberedFile: remembered
+  });
+  if (decision.mode === 'local' && decision.file && !decision.needsPicker) {
+    rememberLocal(decision.file);
+    if (win && !win.isDestroyed()) win.webContents.reload();
+    return;
+  }
+  menuPick();
+}
+
+function menuPick() {
+  pickLocalFolder().then(function (decision) {
+    if (decision.mode !== 'local' || !decision.file) return;
+    rememberLocal(decision.file);
+    if (win && !win.isDestroyed()) win.webContents.reload();
+  }).catch(function () {});
+}
+
 function menuSignOut() {
   getTokenStore().then(function (store) { return store.clear(); }).then(function () {
-    preferences.writeMode(modeFile(), null);
+    if (preferences.readMode(modeFile()) === 'cloud') preferences.writeMode(modeFile(), null);
+    stopWatch();
     if (win && !win.isDestroyed()) win.webContents.reload();
     refreshMenu();
   }).catch(function () {});
@@ -540,16 +699,20 @@ app.whenReady().then(function () {
   });
   ipcMain.handle('checklist:sign-out', function () {
     return getTokenStore().then(function (store) { return store.clear(); }).then(function () {
-      preferences.writeMode(modeFile(), null);
+      if (preferences.readMode(modeFile()) === 'cloud') preferences.writeMode(modeFile(), null);
+      stopWatch();
       return { ok: true };
     });
   });
   ipcMain.handle('checklist:use-sample', function () {
-    preferences.writeMode(modeFile(), 'demo');
+    preferences.writeMode(modeFile(), 'demo', { explicitDemo: true });
+    stopWatch();
     return { ok: true };
   });
   ipcMain.handle('checklist:load', async function () {
     try {
+      if (activeMode() === 'local') return openLocal().load();
+      if (activeMode() !== 'cloud') return { error: 'sample-only' };
       const cfg = webConfig();
       const token = await accessToken();
       return await graph.loadChecklist(fetch, token, cfg.dataPath);
@@ -557,6 +720,8 @@ app.whenReady().then(function () {
   });
   ipcMain.handle('checklist:etag', async function () {
     try {
+      if (activeMode() === 'local') return { etag: openLocal().etag() };
+      if (activeMode() !== 'cloud') return { error: 'sample-only' };
       const cfg = webConfig();
       const token = await accessToken();
       return { etag: await graph.readEtag(fetch, token, cfg.dataPath) };
@@ -564,6 +729,8 @@ app.whenReady().then(function () {
   });
   ipcMain.handle('checklist:save', async function (_event, data, etag) {
     try {
+      if (activeMode() === 'local') return openLocal().save(data, etag);
+      if (activeMode() !== 'cloud') return { error: 'sample-only' };
       const cfg = webConfig();
       const token = await accessToken();
       return await graph.saveChecklist(fetch, token, cfg.dataPath, data, etag);

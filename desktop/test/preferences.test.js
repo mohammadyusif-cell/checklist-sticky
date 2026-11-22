@@ -21,17 +21,28 @@ test('window state stays inside a normal desktop window', () => {
   assert.deepEqual(preferences.clampBounds(null).width, preferences.DEFAULT_BOUNDS.width);
 });
 
-test('mode file stores only demo or cloud', () => {
+test('mode file stores demo, cloud, or local, and explicit demo is separate', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'checklist-mode-'));
   const file = path.join(dir, 'checklist-mode.json');
   preferences.writeMode(file, 'demo');
   assert.equal(fs.readFileSync(file, 'utf8'), '{"mode":"demo"}\n');
   assert.equal(preferences.readMode(file), 'demo');
+  assert.equal(preferences.readModeRecord(file).explicitDemo, false);
+  preferences.writeMode(file, 'demo', { explicitDemo: true });
+  assert.equal(fs.readFileSync(file, 'utf8'), '{"mode":"demo","explicitDemo":true}\n');
+  assert.equal(preferences.readModeRecord(file).explicitDemo, true);
+  preferences.writeMode(file, 'local');
+  assert.equal(preferences.readMode(file), 'local');
+  assert.equal(fs.readFileSync(file, 'utf8').includes('checklist'), false);
   preferences.writeMode(file, 'cloud');
   assert.equal(preferences.readMode(file), 'cloud');
   preferences.writeMode(file, 'delete-everything');
   assert.equal(fs.existsSync(file), false);
   assert.equal(preferences.readMode(file), null);
+  const folderFile = path.join(dir, 'local-folder.json');
+  preferences.writeLocalFolder(folderFile, '/tmp/Checklist Sticky');
+  assert.equal(preferences.readLocalFolder(folderFile), '/tmp/Checklist Sticky');
+  assert.equal(fs.readFileSync(folderFile, 'utf8').includes('tasks'), false);
 });
 
 test('encrypted token store refuses plaintext and round-trips ciphertext', async () => {

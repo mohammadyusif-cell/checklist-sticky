@@ -225,15 +225,23 @@
     });
   }
   function poll(force) {
-    if (!state.store || state.saving || state.dirty) return Promise.resolve();
+    if (!state.store || state.saving) return Promise.resolve();
+    if (state.dirty && !force) return Promise.resolve();
     return state.store.etag().then(function (e) {
       if (!force && e === state.etag) return;
       return state.store.load().then(function (r) {
-        if (state.dirty || state.saving) return;   // an edit started meanwhile; its save will merge
+        if (state.saving) return;
+        if (state.dirty) {
+          // the file changed while this Mac had edits: keep both, using the same merge as a save conflict
+          var m = M.merge(state.base, state.data, r.data);
+          state.data = m.data; state.base = clone(r.data); state.etag = r.etag;
+          if (m.notes.length) console.log('merge:', m.notes);
+          render(); changed(); return;
+        }
         state.data = r.data; state.base = clone(r.data); state.etag = r.etag; render();
         setStatus('Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), 'ok');
       });
-    }).catch(function (e) { if (!(e && (e.signin || e.redirecting))) setStatus('Offline? ' + (e && e.message || e), 'err'); });
+    }).catch(function (e) { if (!(e && (e.signin || e.redirecting || e.dataless))) setStatus('Offline? ' + (e && e.message || e), 'err'); else if (e && e.dataless) setStatus(e.message, 'err'); });
   }
 
   // ------------------------------------------------------------ edits
@@ -450,8 +458,11 @@
     if (!demo && !desktopApi && typeof msal === 'undefined') { setStatus('Sign-in library failed to load.', 'err'); return; }
     state.store = demo ? DemoStore() : (desktopApi ? DesktopStore(desktopApi) : GraphStore());
     if (demo && desktopApi && state.store.account) state.store.account = function () { return 'sample checklist on this Mac'; };
+    if (boot && boot.mode === 'local' && state.store) state.store.name = 'this Mac';
+    if (boot && boot.mode === 'local' && state.store) state.store.signOut = null;
     window.__cs = state;   // for testing
     window.__csFlush = flush;
+    if (desktopApi && desktopApi.onExternalChange) desktopApi.onExternalChange(function () { poll(true); });
     if (desktopApi) setupDesktopChrome(desktopApi, boot);
     $('btnReorder').onclick = function () { state.reorder = !state.reorder; this.classList.toggle('on', state.reorder); render(); };
     $('btnCollapseAll').onclick = function () { setAllCollapsed(true); };

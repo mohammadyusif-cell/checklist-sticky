@@ -12,6 +12,14 @@ This build is for Apple Silicon (arm64). It asks for macOS 13 or later, which in
 
 There is no Developer ID certificate in this build, so it cannot be notarized. A later build can be signed and notarized if an Apple Developer ID Application certificate and an app-specific notarization password are provided to the Mac workflow. Those secrets are not in this repository.
 
+## Local folder
+
+On a Mac, the default is the `checklist.json` already in OneDrive on this computer: `~/Library/CloudStorage/OneDrive-Personal/Checklist Sticky/checklist.json`, or any other `~/Library/CloudStorage/OneDrive*/Checklist Sticky/checklist.json`. That path is read and saved directly. It does not sign in to Microsoft and does not call the network.
+
+If none or more than one of those files is found, the app asks for the Checklist Sticky folder and remembers that folder under its own settings. **Change Local Folder…** asks again. **Use Sample Checklist** stays on the sample data until you choose local or cloud again. A saved `demo` mode from the previous version switches to the local file when exactly one is found; choosing sample from the menu after this version does not.
+
+The app does not create `checklist.json`. It replaces that file atomically. If `Checklist Sticky/Backups` already exists, the first save each day copies the previous file there, using the dated name already used in that folder, or `checklist-YYYY-MM-DD.json` when the folder is empty. The Windows app’s backup names are not in this repository, so an existing file in `Backups` is what decides the pattern. An online-only OneDrive placeholder is not downloaded; the app asks you to keep the file on this Mac and changes nothing.
+
 ## Sign in
 
 The app does not embed Microsoft’s website and it does not contain a client secret. **Sign in to OneDrive…** opens your usual browser to `login.microsoftonline.com`, then a loopback page on `http://127.0.0.1` returns the authorization code to the app (PKCE, public client). Tokens are stored with the macOS Keychain (`safeStorage`). If the Keychain is unavailable, they stay in memory until quit and are not written as plaintext.
