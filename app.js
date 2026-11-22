@@ -241,7 +241,12 @@
         state.data = r.data; state.base = clone(r.data); state.etag = r.etag; render();
         setStatus('Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), 'ok');
       });
-    }).catch(function (e) { if (!(e && (e.signin || e.redirecting || e.dataless))) setStatus('Offline? ' + (e && e.message || e), 'err'); else if (e && e.dataless) setStatus(e.message, 'err'); });
+    }).catch(function (e) {
+      if (e && (e.signin || e.redirecting)) return;
+      if (e && e.dataless) { setStatus(e.message, 'err'); return; }
+      var prefix = state.mode === 'local' ? 'Could not read the local checklist: ' : 'Offline? ';
+      setStatus(prefix + (e && e.message || e), 'err');
+    });
   }
 
   // ------------------------------------------------------------ edits
@@ -458,8 +463,13 @@
     if (!demo && !desktopApi && typeof msal === 'undefined') { setStatus('Sign-in library failed to load.', 'err'); return; }
     state.store = demo ? DemoStore() : (desktopApi ? DesktopStore(desktopApi) : GraphStore());
     if (demo && desktopApi && state.store.account) state.store.account = function () { return 'sample checklist on this Mac'; };
-    if (boot && boot.mode === 'local' && state.store) state.store.name = 'this Mac';
-    if (boot && boot.mode === 'local' && state.store) state.store.signOut = null;
+    state.mode = boot && boot.mode || '';
+    if (boot && boot.mode === 'local' && state.store) {
+      state.store.name = 'this Mac';
+      state.store.signOut = null;
+      // Refresh and the account label stay on this folder. Sign-in is a separate menu action.
+      state.store.signIn = function () { return Promise.resolve({ error: 'This window is using the local OneDrive folder. Choose Sign in to OneDrive from the menu to switch. Nothing was changed.' }); };
+    }
     window.__cs = state;   // for testing
     window.__csFlush = flush;
     if (desktopApi && desktopApi.onExternalChange) desktopApi.onExternalChange(function () { poll(true); });

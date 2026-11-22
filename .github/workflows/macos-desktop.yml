@@ -83,6 +83,26 @@ jobs:
           cat dist/smoke-result.json
           test "$code" -eq 0
           node -e "const r=require('./dist/smoke-result.json'); if(!r.ok) process.exit(1); const hosts=r.blockedMicrosoftHosts||[]; if(hosts.length) process.exit(1);"
+      - name: Launch local-folder smoke
+        working-directory: desktop
+        env:
+          CHECKLIST_SMOKE: "1"
+          ELECTRON_ENABLE_LOGGING: "1"
+          CHECKLIST_SMOKE_RESULT: ${{ github.workspace }}/desktop/dist/smoke-local.json
+        run: |
+          APP="dist/mac-arm64/Checklist Sticky.app"
+          FIX="$(mktemp -d)/Checklist Sticky"
+          mkdir -p "$FIX"
+          cp ../sample-checklist.json "$FIX/checklist.json"
+          export CHECKLIST_LOCAL_FIXTURE="$FIX"
+          set +e
+          "$APP/Contents/MacOS/Checklist Sticky" --smoke
+          code=$?
+          set -e
+          echo "local smoke exit $code"
+          cat dist/smoke-local.json
+          test "$code" -eq 0
+          node -e "const r=require('./dist/smoke-local.json'); if(!r.ok) process.exit(1); if((r.blockedMicrosoftHosts||[]).length) process.exit(1); if(!r.info.signinHidden) process.exit(1);"
       - name: Zip and disk image
         working-directory: desktop
         env:
@@ -99,4 +119,5 @@ jobs:
             desktop/dist/build-report.json
             desktop/dist/SHA256SUMS.txt
             desktop/dist/smoke-result.json
+            desktop/dist/smoke-local.json
           retention-days: 14

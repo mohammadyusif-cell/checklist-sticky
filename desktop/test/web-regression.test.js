@@ -178,6 +178,50 @@ test('lists collapse and move, and a wide window uses four columns', async () =>
   } finally { stop(dom); }
 });
 
+test('local mode renders the checklist instead of the Microsoft sign-in screen', async () => {
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'sample-checklist.json'), 'utf8'));
+  let signIns = 0;
+  let signOuts = 0;
+  let loads = 0;
+  let etags = 0;
+  const desktop = {
+    getBoot: async function () {
+      return { demo: false, mode: 'local', signedIn: true, account: 'OneDrive-Personal/Checklist Sticky', alwaysOnTop: false, vibrancy: false };
+    },
+    accountName: function () { return 'OneDrive-Personal/Checklist Sticky'; },
+    signedIn: async function () { return true; },
+    signIn: async function () { signIns++; return { error: 'should not sign in' }; },
+    signOut: async function () { signOuts++; return { ok: true }; },
+    useSample: async function () { return { ok: true }; },
+    load: async function () { loads++; return { data: JSON.parse(JSON.stringify(data)), etag: 'local-etag' }; },
+    save: async function () { return { etag: 'local-etag-2' }; },
+    etag: async function () { etags++; return { etag: 'local-etag' }; },
+    setAlwaysOnTop: async function (on) { return on; }
+  };
+  const dom = boot({ url: 'http://127.0.0.1/checklist/?demo', width: 1100, desktop: desktop });
+  try {
+    await waitFor(function () { return dom.window.document.querySelector('#cols.c2 .card.tasks'); });
+    const document = dom.window.document;
+    assert.equal(document.getElementById('signin').classList.contains('hidden'), true);
+    assert.equal(columns(document)[0][0], 'tasks');
+    assert.equal(columns(document)[1].includes('payroll'), true);
+    assert.equal(columns(document)[1].includes('bills'), true);
+    assert.equal(document.getElementById('tally').textContent, '12 total · 2 done · 10 due');
+    assert.equal(dom.window.__cs.mode, 'local');
+    assert.equal(dom.window.__cs.store.name, 'this Mac');
+    assert.equal(dom.window.__cs.store.signOut, null);
+    assert.equal(loads, 1);
+    assert.equal(signIns, 0);
+    document.getElementById('btnAccount').click();
+    assert.equal(signOuts, 0);
+    await waitFor(function () { return document.getElementById('status').textContent.indexOf('Saved') >= 0; });
+    document.getElementById('btnRefresh').click();
+    await waitFor(function () { return etags > 0; });
+    assert.equal(signIns, 0);
+    assert.equal(signOuts, 0);
+  } finally { stop(dom); }
+});
+
 test('desktop sign-in screen does not call Graph until the user signs in', async () => {
   let signedIn = false;
   let sample = false;

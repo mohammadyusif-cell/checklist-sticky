@@ -198,6 +198,15 @@ test('a missing checklist is not created', () => {
   assert.deepEqual(fs.readdirSync(dirs.personal), []);
 });
 
+test('local mode counts as signed in only when the checklist file is resolved', () => {
+  assert.equal(localFile.sessionIsSignedIn('local', true, false), true);
+  assert.equal(localFile.sessionIsSignedIn('local', false, true), false);
+  assert.equal(localFile.sessionIsSignedIn('cloud', true, false), false);
+  assert.equal(localFile.sessionIsSignedIn('cloud', false, true), true);
+  assert.equal(localFile.sessionIsSignedIn('demo', true, true), false);
+  assert.equal(localFile.sessionIsSignedIn('signin', false, false), false);
+});
+
 test('online-only placeholder stats are recognized and not read', () => {
   assert.equal(localFile.isDatalessStat({ size: 40, blocks: 0, flags: 0 }), true);
   assert.equal(localFile.isDatalessStat({ size: 40, blocks: 8, flags: localFile.SF_DATALESS }), true);

@@ -122,6 +122,12 @@ function findCandidateFiles(home, io) {
   return found;
 }
 
+function sessionIsSignedIn(mode, localResolved, cloudSignedIn) {
+  if (mode === 'local') return localResolved === true;
+  if (mode === 'cloud') return cloudSignedIn === true;
+  return false;
+}
+
 function resolveDataMode(options) {
   const savedMode = options.savedMode || null;
   const candidates = options.candidates || [];
@@ -267,5 +273,6 @@ module.exports = {
   checklistFileIn,
   findCandidateFiles,
   resolveDataMode,
+  sessionIsSignedIn,
   createLocalStore
 };

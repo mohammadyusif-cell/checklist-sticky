@@ -13,7 +13,8 @@ const tokenStoreMod = require('./token-store');
 const webroot = require('./webroot');
 
 const smoke = process.argv.includes('--smoke') || process.env.CHECKLIST_SMOKE === '1';
-const forceDemo = smoke || process.argv.includes('--demo') || process.env.CHECKLIST_FORCE_DEMO === '1';
+const localFixture = process.env.CHECKLIST_LOCAL_FIXTURE || '';
+const forceDemo = !localFixture && (smoke || process.argv.includes('--demo') || process.env.CHECKLIST_FORCE_DEMO === '1');
 
 app.setName('Checklist Sticky');
 if (smoke) {
@@ -208,7 +209,18 @@ function rememberLocal(file) {
   startWatch(file);
 }
 
+function resolvedLocalFile() {
+  const folder = preferences.readLocalFolder(localFolderFile());
+  return regularChecklist(localFile.checklistFileIn(folder || ''));
+}
+
 async function decideMode() {
+  if (localFixture) {
+    const file = regularChecklist(localFile.checklistFileIn(localFixture));
+    if (!file) return { mode: 'signin', source: 'fixture-missing', needsPicker: false };
+    rememberLocal(file);
+    return { mode: 'local', source: 'fixture', file: file, needsPicker: false };
+  }
   const saved = preferences.readModeRecord(modeFile());
   const remembered = forceDemo ? null : regularChecklist(localFile.checklistFileIn(preferences.readLocalFolder(localFolderFile()) || ''));
   const candidates = forceDemo ? [] : localFile.findCandidateFiles(os.homedir(), diskIo());
@@ -693,7 +705,12 @@ app.whenReady().then(function () {
   });
 
   ipcMain.handle('checklist:boot', function () { return bootInfo(); });
-  ipcMain.handle('checklist:signed-in', function () { return isSignedIn(); });
+  ipcMain.handle('checklist:signed-in', async function () {
+    const mode = activeMode();
+    const localResolved = mode === 'local' && !!resolvedLocalFile();
+    const cloudSignedIn = mode === 'cloud' ? await isSignedIn() : false;
+    return localFile.sessionIsSignedIn(mode, localResolved, cloudSignedIn);
+  });
   ipcMain.handle('checklist:sign-in', function () {
     return performSignIn().then(function () { return { ok: true }; }, function (err) { return ipcError(err); });
   });
