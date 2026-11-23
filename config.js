@@ -1,5 +1,6 @@
 // Checklist Sticky web - settings.
 // clientId: the Application (client) ID of the Entra app registration (SPA, personal Microsoft accounts).
+// This is a public identifier, not a secret. The Mac app reads the same value and does not add a client secret.
 // Leave empty to run in demo mode (data kept only in this browser).
 window.CHECKLIST_CONFIG = {
   clientId: '66474cea-d6d9-4289-8dff-23d5950bd88f',

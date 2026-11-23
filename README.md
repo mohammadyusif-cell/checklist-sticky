@@ -1,4 +1,6 @@
 # Checklist Sticky - web / iPhone version
+
+The Mac app is in [`desktop/`](desktop/README.md). It is the same checklist in a Dock window, with sign-in in the system browser.
 Static site (no server code). Reads/writes his OneDrive file `Checklist Sticky/checklist.json` through Microsoft Graph (MSAL.js, sign-in with his Microsoft account).
 - config.js: set `clientId` (Entra app registration: SPA platform, redirect URI = the site URL, "Personal Microsoft accounts" allowed, delegated Files.ReadWrite).
 - Without a clientId (or with ?demo) it runs on sample-checklist.json in this browser only (synthetic data).
