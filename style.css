@@ -90,6 +90,20 @@ html[data-vibrancy="1"] #app { background: rgba(22,24,30,.72); min-height: 100%;
 html[data-desktop="1"] header#top { padding-left: 84px; -webkit-app-region: drag; }
 html[data-desktop="1"][data-cols="4"] header#top { padding-left: 16px; }
 html[data-desktop="1"] header#top button, html[data-desktop="1"] header#top .hbtns, html[data-desktop="1"] header#top .sync { -webkit-app-region: no-drag; }
+/* macOS only: data-vibrancy is set for the Darwin window. Center the title in the
+   header and keep it clear of the traffic lights (about 78px) and the buttons. */
+html[data-vibrancy="1"] header#top,
+html[data-vibrancy="1"][data-cols="4"] header#top { padding-left: 12px; padding-right: 12px; }
+html[data-vibrancy="1"] header#top .titles {
+  position: absolute; left: 50%; top: 0; bottom: 0; transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 420px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; pointer-events: none; z-index: 1;
+}
+html[data-vibrancy="1"] header#top .title,
+html[data-vibrancy="1"] header#top .week,
+html[data-vibrancy="1"] header#top .tally { width: 100%; text-align: center; }
+html[data-vibrancy="1"] header#top .hbtns { margin-left: auto; position: relative; z-index: 2; }
 html[data-desktop="1"] #btnPin { font-size: 14px; }
 html[data-text="large"] body { font-size: 18px; }
 html[data-text="large"] .title { font-size: 22px; }

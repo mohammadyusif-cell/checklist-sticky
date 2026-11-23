@@ -88,6 +88,15 @@ function counts(text) {
   return match ? { done: Number(match[1]), due: Number(match[2]) } : null;
 }
 
+test('macOS header title is centered clear of the traffic lights', () => {
+  const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
+  const block = css.split('html[data-vibrancy="1"] header#top .titles {')[1].split('}')[0];
+  assert.match(block, /left: 50%/);
+  assert.match(block, /transform: translateX\(-50%\)/);
+  assert.match(block, /max-width: calc\(100% - 420px\)/);
+  assert.equal(css.includes('html[data-desktop="1"] header#top .titles {'), false);
+});
+
 test('index.html keeps the website script order', () => {
   const configAt = html.indexOf('src="config.js"');
   const msalAt = html.indexOf('src="vendor/msal-browser-3.30.0.min.js"');
